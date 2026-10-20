@@ -446,7 +446,9 @@ function shimMain(core, cfg){
   function paintPill(){
     if(!pill) return;
     var ro = mode() === 'read';
-    pill.textContent = ro ? '👁 Read-only' : '☁ Dropbox';
+    var narrow = pillInHeader && window.matchMedia('(max-width: 600px)').matches;
+    pill.textContent = ro ? (narrow ? '👁 ⋯' : '👁 Read-only') : (narrow ? '⋯' : '☁ Dropbox');
+    pill.setAttribute('aria-label', 'Board and Dropbox options');
     if(ro || !pillInHeader){
       pill.style.background = ro ? 'var(--amber, #B8841F)' : 'var(--panel-3, #E7EFE9)';
       pill.style.color = ro ? 'var(--on-amber, #2B1D06)' : 'var(--text, #16241F)';
@@ -467,7 +469,32 @@ function shimMain(core, cfg){
     sheet = el('div', 'position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.35);display:flex;align-items:flex-end;justify-content:center;');
     sheet.onclick = function(e){ if(e.target === sheet) closeSheet(); };
     var card = el('div', 'width:100%;max-width:480px;background:var(--panel-2,#fff);color:var(--text,#16241F);border-radius:14px 14px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));font:14px/1.45 var(--sans,-apple-system,sans-serif);box-shadow:0 -8px 24px rgba(0,0,0,0.2);');
-    card.appendChild(el('div', 'font-family:var(--display,serif);font-style:italic;font-weight:600;font-size:18px;margin-bottom:4px;', 'Dropbox connection'));
+    card.appendChild(el('div', 'font-family:var(--display,serif);font-weight:700;font-size:18px;margin-bottom:4px;', 'Board'));
+    // Display settings live here on a phone, where the header keeps only the essentials.
+    var fd = document.getElementById('fontDown'), fu = document.getElementById('fontUp'), fl = document.getElementById('fontLevel'), tb = document.getElementById('themeBtn');
+    var sv = document.getElementById('saveBtn');
+    if(sv && !sv.disabled){
+      var sb2 = el('button', 'display:block;width:100%;margin:4px 0 8px;padding:12px;border-radius:9px;font:600 14px var(--sans,sans-serif);border:1px solid var(--amber,#B8841F);background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);', 'Save now');
+      sb2.onclick = function(){ sv.click(); closeSheet(); };
+      card.appendChild(sb2);
+    }
+    if(fd && fu && fl){
+      var row = el('div', 'display:flex;align-items:center;gap:8px;margin:6px 0 4px;');
+      row.appendChild(el('span', 'flex:1;font-weight:600;', 'Text size'));
+      var lvl = el('span', 'min-width:48px;text-align:center;color:var(--muted,#5C7269);', fl.textContent);
+      function sz(b){ var x = el('button', 'padding:8px 14px;border-radius:9px;font:600 14px var(--sans,sans-serif);border:1px solid var(--border,#D3DFD8);background:var(--panel-3,#E7EFE9);color:var(--text,#16241F);', b === fd ? 'A−' : 'A+'); x.onclick = function(){ b.click(); lvl.textContent = fl.textContent; }; return x; }
+      row.appendChild(sz(fd)); row.appendChild(lvl); row.appendChild(sz(fu));
+      card.appendChild(row);
+    }
+    if(tb){
+      var trow = el('div', 'display:flex;align-items:center;gap:8px;margin:6px 0 10px;');
+      trow.appendChild(el('span', 'flex:1;font-weight:600;', 'Appearance'));
+      var tbtn = el('button', 'padding:8px 14px;border-radius:9px;font:600 14px var(--sans,sans-serif);border:1px solid var(--border,#D3DFD8);background:var(--panel-3,#E7EFE9);color:var(--text,#16241F);', document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches) ? 'Switch to light' : 'Switch to dark');
+      tbtn.onclick = function(){ tb.click(); closeSheet(); };
+      trow.appendChild(tbtn);
+      card.appendChild(trow);
+    }
+    card.appendChild(el('div', 'font-weight:600;margin-top:6px;', 'Dropbox'));
     card.appendChild(el('div', 'color:var(--muted,#5C7269);font-size:12.5px;margin-bottom:12px;', 'This board reads ' + cfg.tasksPath + ' from Dropbox. Saves go through only if the file has not changed since it was read, and are held while the lock file exists.'));
     function btn(text, primary, fn){
       var b = el('button', 'display:block;width:100%;margin-top:8px;padding:12px;border-radius:9px;font:600 14px var(--sans,sans-serif);border:1px solid var(--border,#D3DFD8);' + (primary ? 'background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);border-color:var(--amber,#B8841F);' : 'background:var(--panel-3,#E7EFE9);color:var(--text,#16241F);'), text);
@@ -597,38 +624,72 @@ function shimMain(core, cfg){
   setInterval(function(){ if(!document.hidden && !sheet) refreshNow(false); }, cfg.autoRefreshMs || 60000);
 
   // ---------- Phone layout ----------
-  // Applies only on narrow screens, so desktop and tablet keep the board as is.
+  // Narrow screens only (desktop and tablet keep the board as is). Aims for a
+  // native iOS feel: system font, nothing that scrolls sideways, a large title,
+  // round tick boxes, and the sections as a tap-to-open list instead of a strip.
   var PHONE_CSS = '@media (max-width: 600px){' +
-    'input,textarea,select{font-size:16px !important;}' +          /* iOS zooms into any field under 16px */
-    '.board{padding:8px 12px 6px !important;}' +
-    '.board-top{gap:8px !important;}' +
-    '.board-title{gap:9px !important;}' +
-    '.board-title .glyph{width:28px !important;height:28px !important;font-size:14px !important;}' +
-    '.board-title h1{font-size:18px !important;}' +
-    '.board-title .sub{font-size:11px !important;line-height:1.35 !important;}' +
-    '.role-tag{display:none !important;}' +
-    '.board-actions{flex-wrap:nowrap !important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:6px !important;padding-bottom:2px;}' +
-    '.board-actions::-webkit-scrollbar{display:none;}' +
-    '.board-actions>*{flex:0 0 auto;}' +
-    '.board-actions button{padding:6px 10px !important;font-size:12.5px !important;}' +
-    '.ui-ctl button{padding:4px 7px !important;}' +
-    '.status-pill{font-size:10px !important;padding:4px 7px !important;white-space:nowrap;}' +
-    '#forgetBtn,#openBtn{display:none !important;}' +
-    '.flap-row{margin-top:8px !important;gap:6px !important;}' +
-    '.flap{min-width:62px !important;padding:5px 8px !important;}' +
-    '.flap .n{font-size:17px !important;}' +
-    '.flap .l{font-size:8.5px !important;letter-spacing:1px !important;}' +
-    '.flap.cleared{min-width:96px !important;}' +
+    ':root{--sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif !important;--display:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif !important;}' +
+    'body{-webkit-tap-highlight-color:transparent;}' +
+    'button,.tab,.chk,.flap,.more-btn{touch-action:manipulation;}' +
+    'input,textarea,select{font-size:16px !important;}' +                      /* iOS zooms into any field under 16px */
+    /* header: large title, one status line, a few compact buttons, wrapping rather than scrolling */
+    '.board{padding:10px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left)) !important;background:var(--bg) !important;border-bottom:none !important;}' +
+    '.board-top{display:block !important;}' +
+    '.board-title .glyph,.role-tag{display:none !important;}' +
+    '.board-title h1{font-size:30px !important;font-weight:700 !important;font-style:normal !important;letter-spacing:0.2px !important;}' +
+    '.board-title .sub{font-size:12px !important;line-height:1.35 !important;margin-top:3px !important;}' +
+    '.board-actions{display:flex !important;flex-wrap:wrap !important;align-items:center !important;gap:8px !important;width:100% !important;margin-top:10px !important;overflow:visible !important;}' +
+    '.board-actions .ui-ctl,#forgetBtn,#openBtn,#saveBtn:disabled{display:none !important;}' +
+    '.board-actions .status-pill{order:-1;flex:1 1 auto;border:none !important;padding:0 !important;background:none !important;font:500 13px var(--sans) !important;white-space:nowrap;}' +
+    '.board-actions button{padding:7px 13px !important;font-size:14px !important;border-radius:10px !important;min-height:34px;}' +
+    /* counts: a 3 x 2 grid instead of a sideways strip */
+    '.flap-row{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;gap:8px !important;margin-top:12px !important;overflow:visible !important;padding:0 !important;}' +
+    '.flap{min-width:0 !important;padding:9px 6px 8px !important;border-radius:12px !important;animation:none !important;}' +
+    '.flap.cleared{min-width:0 !important;}' +
+    '.flap .n{font:700 21px var(--sans) !important;}' +
+    '.flap .l{font:600 9.5px var(--sans) !important;letter-spacing:0.6px !important;}' +
     '.activity-strip{height:10px !important;margin-top:4px !important;}' +
-    '.main{padding:12px 12px calc(40px + env(safe-area-inset-bottom)) !important;}' +
+    /* sections: the current one as a full-width button; tap to open the full list */
+    '#sidebar{display:block !important;position:sticky !important;top:0;z-index:60;overflow:visible !important;padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left)) !important;background:var(--bg) !important;border-bottom:0.5px solid var(--border) !important;max-height:none !important;}' +
+    '#sidebar .tab,#sidebar .sidebar-reorder{display:none !important;}' +
+    '#sidebar .tab.active,#sidebar:not(:has(.tab.active)) .tab:nth-child(2){display:flex !important;width:100%;margin:0;padding:11px 14px !important;border-radius:12px !important;border:0.5px solid var(--border) !important;background:var(--panel-2) !important;box-shadow:none !important;font:600 16px var(--sans) !important;color:var(--text) !important;white-space:normal !important;}' +
+    '#sidebar .tab-label{flex:1 1 auto;min-width:0;}' +
+    '#sidebar .tab.active::after,#sidebar:not(:has(.tab.active)) .tab:nth-child(2)::after{content:"";flex:0 0 auto;width:7px;height:7px;margin:0 2px 3px 12px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);}' +
+    '#sidebar.enum-open{max-height:calc(100vh - 60px) !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch;}' +
+    '#sidebar.enum-open .tab{display:flex !important;width:100%;margin:0 !important;padding:13px 14px !important;border:none !important;border-bottom:0.5px solid var(--border) !important;border-radius:0 !important;background:var(--panel-2) !important;box-shadow:none !important;font:400 16px var(--sans) !important;color:var(--text) !important;white-space:normal !important;}' +
+    '#sidebar.enum-open .tab::after{content:none !important;}' +
+    '#sidebar.enum-open .tab.active{font-weight:600 !important;color:var(--amber) !important;}' +
+    '#sidebar.enum-open .tab:nth-child(2){border-radius:12px 12px 0 0 !important;}' +
+    '#sidebar.enum-open .tab:nth-last-child(2){border-radius:0 0 12px 12px !important;border-bottom:none !important;}' +
+    '#sidebar.enum-open .sidebar-reorder{display:flex !important;border-top:none !important;padding:10px 0 2px !important;margin:0 !important;}' +
+    '#sidebar .tab .badge{margin-left:auto;font:500 13px var(--sans) !important;padding:1px 8px !important;border-radius:10px !important;}' +
+    '.task-row.overdue .task-text{font-weight:600 !important;}' +
+    /* content */
+    '.main{padding:12px max(16px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)) !important;}' +
     '.searchbar{margin-bottom:10px !important;}' +
-    '.completed-toggle{padding:2px 2px 10px !important;font-size:12.5px !important;}' +
-    '.quickadd{margin-bottom:12px !important;}' +
-    '.sec-note{display:none !important;}' +
-    'h3.sec-title{font-size:17px !important;}' +
-    '.footer-note{display:none !important;}' +
+    '.searchbar input,.quickadd input{border-radius:10px !important;padding:9px 12px !important;}' +
+    '.completed-toggle{padding:2px 2px 12px !important;font-size:14px !important;}' +
+    '.quickadd{margin-bottom:14px !important;}' +
+    '.sec-note,.footer-note{display:none !important;}' +
+    'h3.sec-title,.insights-head .sec-title{font-size:22px !important;font-weight:700 !important;font-style:normal !important;}' +
+    'h4.sub-title{font:600 12px var(--sans) !important;letter-spacing:0.6px !important;}' +
+    '.empty-state h2,.insight-title{font-style:normal !important;}' +
+    '.task-row{padding:10px 6px !important;}' +
+    '.task-text{font-size:15px !important;}' +
+    '.chk{width:22px !important;height:22px !important;border-radius:50% !important;margin-top:0 !important;}' +
+    '.detail-row{font-size:13.5px !important;}' +
+    /* tables become stacked cards instead of scrolling sideways */
+    '.table-scroll{overflow:visible !important;}' +
+    'table.md-table{min-width:0 !important;display:block !important;border:none !important;}' +
+    'table.md-table thead{display:none !important;}' +
+    'table.md-table tbody,table.md-table tr,table.md-table td{display:block !important;width:auto !important;}' +
+    'table.md-table tr{background:var(--panel-2) !important;border:0.5px solid var(--border) !important;border-radius:12px;margin-bottom:8px;padding:9px 12px;}' +
+    'table.md-table td{border:none !important;padding:2px 0 !important;background:none !important;}' +
+    'table.md-table td:first-child{font-weight:600;font-size:12.5px;color:var(--muted);}' +
+    '.vbar-col{min-width:0 !important;}' +
   '}';
   var phoneQuery = window.matchMedia('(max-width: 600px)');
+  var STATUS_SHORT = [[/^saved/i, 'Saved ✓'], [/^unsaved/i, 'Unsaved…'], [/^not saved/i, 'Not saved'], [/^read-only/i, 'Read-only'], [/^not loaded/i, 'Loading…']];
   function phoneText(){
     if(!phoneQuery.matches) return;
     var t = document.querySelector('.completed-toggle span:last-child');
@@ -636,7 +697,32 @@ function shimMain(core, cfg){
     var q = document.getElementById('quickInput');
     if(q && q.placeholder.length > 30) q.placeholder = 'Quick-add to Quick Capture…';
     var r = document.getElementById('reloadBtn');
-    if(r && r.textContent !== '↻ Refresh'){ r.textContent = '↻ Refresh'; r.title = 'Re-read TASKS.md from Dropbox'; }
+    if(r && r.textContent !== '↻'){ r.textContent = '↻'; r.title = 'Re-read TASKS.md from Dropbox'; r.setAttribute('aria-label', 'Refresh'); }
+    var sp = document.getElementById('statusPill');
+    if(sp){
+      for(var i = 0; i < STATUS_SHORT.length; i++){
+        if(STATUS_SHORT[i][0].test(sp.textContent) && sp.textContent !== STATUS_SHORT[i][1]){ sp.textContent = STATUS_SHORT[i][1]; break; }
+      }
+    }
+  }
+  // Sections list: tapping the current section opens the list; picking one closes it.
+  function wireSectionPicker(){
+    var sb = document.getElementById('sidebar');
+    if(!sb) return;
+    sb.addEventListener('click', function(e){
+      if(!phoneQuery.matches) return;
+      var tab = e.target.closest && e.target.closest('.tab');
+      if(!tab || tab.classList.contains('reordering') || e.target.closest('.reorder-ctl')) return;
+      if(!sb.classList.contains('enum-open')){
+        e.stopPropagation(); e.preventDefault();
+        sb.classList.add('enum-open');
+        return;
+      }
+      setTimeout(function(){ sb.classList.remove('enum-open'); window.scrollTo(0, 0); }, 0);
+    }, true);
+    document.addEventListener('click', function(e){
+      if(sb.classList.contains('enum-open') && !sb.contains(e.target)) sb.classList.remove('enum-open');
+    });
   }
 
   function mountUi(){
@@ -648,22 +734,23 @@ function shimMain(core, cfg){
     var actions = document.querySelector('.board-actions');
     if(actions){
       pillInHeader = true;
-      actions.insertBefore(pill, actions.firstChild);
+      actions.appendChild(pill);
     } else {
       pill.style.cssText = 'position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));z-index:240;padding:6px 11px;border-radius:16px;border:1px solid var(--border,#D3DFD8);font:600 12px var(--sans,-apple-system,sans-serif);box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:pointer;';
       document.body.appendChild(pill);
     }
     paintPill();
     phoneText();
+    wireSectionPicker();
     var pending = false;
     new MutationObserver(function(){
       if(pending) return;
       pending = true;
       requestAnimationFrame(function(){ pending = false; phoneText(); });
-    }).observe(document.body, { childList: true, subtree: true });
-    if(phoneQuery.addEventListener) phoneQuery.addEventListener('change', phoneText);
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    if(phoneQuery.addEventListener) phoneQuery.addEventListener('change', function(){ phoneText(); paintPill(); });
     if(mode() === 'read'){
-      var bar = el('div', 'position:sticky;top:0;z-index:230;padding:calc(7px + env(safe-area-inset-top)) 14px 7px;background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);font:600 12.5px var(--sans,sans-serif);text-align:center;', 'Read-only on this phone: you can look, but nothing you change here is saved to Dropbox.');
+      var bar = el('div', 'position:relative;z-index:230;padding:calc(7px + env(safe-area-inset-top)) 14px 7px;background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);font:600 12.5px var(--sans,sans-serif);text-align:center;', 'Read-only on this phone: you can look, but nothing you change here is saved to Dropbox.');
       bar.id = 'enum-ro-bar';
       document.body.insertBefore(bar, document.body.firstChild);
       // The board's own status pill says "saved — synced via Dropbox" after a
