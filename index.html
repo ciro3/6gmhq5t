@@ -440,15 +440,18 @@ function shimMain(core, cfg){
   window.addEventListener('unhandledrejection', function(e){ note('Unhandled: ' + ((e.reason && e.reason.message) || e.reason)); });
   document.addEventListener('securitypolicyviolation', function(e){ note('Blocked by policy: ' + e.violatedDirective + ' ' + (e.blockedURI || '')); });
 
-  // ---------- Small Dropbox control, bottom-left ----------
-  var pill, sheet;
+  // ---------- Dropbox control (in the header when the board has one) ----------
+  var pill, sheet, pillInHeader = false;
   function el(tag, css, text){ var n = document.createElement(tag); if(css) n.style.cssText = css; if(text != null) n.textContent = text; return n; }
   function paintPill(){
     if(!pill) return;
     var ro = mode() === 'read';
     pill.textContent = ro ? '👁 Read-only' : '☁ Dropbox';
-    pill.style.background = ro ? 'var(--amber, #B8841F)' : 'var(--panel-3, #E7EFE9)';
-    pill.style.color = ro ? 'var(--on-amber, #2B1D06)' : 'var(--text, #16241F)';
+    if(ro || !pillInHeader){
+      pill.style.background = ro ? 'var(--amber, #B8841F)' : 'var(--panel-3, #E7EFE9)';
+      pill.style.color = ro ? 'var(--on-amber, #2B1D06)' : 'var(--text, #16241F)';
+      pill.style.borderColor = ro ? 'var(--amber, #B8841F)' : '';
+    }
     pill.title = ro ? 'Read-only: nothing on this phone is saved to Dropbox. Tap for options.' : 'Reading and saving TASKS.md in Dropbox. Tap for options.';
   }
   function flashPill(word){
@@ -516,12 +519,149 @@ function shimMain(core, cfg){
       document.body.appendChild(o);
     });
   }
+  // ---------- Refresh ----------
+  // The board already re-checks TASKS.md whenever it regains focus (switching
+  // back to the app). On top of that: pull down at the top of the page to
+  // check now, and a quiet check every minute while the board is on screen.
+  // The board's own guard skips the reload while an edit is unsaved.
+  var ptr = null, ptrTimer = null;
+  function ptrEl(){
+    if(!ptr){
+      ptr = el('div', 'position:fixed;left:50%;top:calc(8px + env(safe-area-inset-top));transform:translate(-50%,-80px);z-index:450;padding:7px 13px;border-radius:16px;background:var(--panel-2,#fff);color:var(--text,#16241F);border:1px solid var(--border,#D3DFD8);font:600 12.5px var(--sans,-apple-system,sans-serif);box-shadow:0 3px 10px rgba(0,0,0,0.15);transition:transform .18s ease;pointer-events:none;white-space:nowrap;');
+      ptr.id = 'enum-ptr';
+      document.body.appendChild(ptr);
+    }
+    return ptr;
+  }
+  function showPtr(text, autoHideMs){
+    var p = ptrEl();
+    p.textContent = text;
+    p.style.transform = 'translate(-50%,0)';
+    clearTimeout(ptrTimer);
+    if(autoHideMs) ptrTimer = setTimeout(hidePtr, autoHideMs);
+  }
+  function hidePtr(){ if(ptr) ptr.style.transform = 'translate(-50%,-80px)'; }
+  function hasUnsaved(){ var sp = document.getElementById('statusPill'); return !!(sp && /unsaved|not saved/i.test(sp.textContent)); }
+  function nudgeBoard(){ window.dispatchEvent(new Event('focus')); }
+  var refreshing = false;
+  async function refreshNow(manual){
+    if(refreshing) return;
+    refreshing = true;
+    if(manual) showPtr('Checking Dropbox…');
+    try{
+      if(manual){
+        var dm = await core.metadata(cfg.dashboardPath);
+        var cached = null; try{ cached = JSON.parse(localStorage.getItem(cfg.dashCacheKey)); }catch(e){}
+        if(dm && cached && cached.rev && dm.rev !== cached.rev){
+          if(hasUnsaved()){ showPtr('Board updated: tap ☁ → Reload after this edit saves', 3500); return; }
+          showPtr('Board updated, reloading…');
+          setTimeout(reloadBoard, 500);
+          return;
+        }
+      }
+      var tm = await core.metadata(cfg.tasksPath);
+      var c = cache[lower(cfg.tasksPath)];
+      var changed = !!(tm && c && c.rev !== tm.rev);
+      nudgeBoard();
+      if(manual){
+        if(changed && hasUnsaved()) showPtr('TASKS.md changed in Dropbox: finish this edit first', 3000);
+        else showPtr(changed ? 'Updated from Dropbox ✓' : 'Up to date ✓', 1400);
+      }
+    }catch(e){
+      note('Refresh: ' + e.message);
+      if(manual) showPtr('Could not reach Dropbox', 2500);
+      if(e.dbxAuth) offerReconnect();
+    }finally{
+      refreshing = false;
+    }
+  }
+  (function pullToRefresh(){
+    var startY = 0, startX = 0, pulling = false, dist = 0;
+    document.addEventListener('touchstart', function(e){
+      pulling = !sheet && e.touches.length === 1 && (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+      if(pulling){ startY = e.touches[0].clientY; startX = e.touches[0].clientX; dist = 0; }
+    }, { passive: true });
+    document.addEventListener('touchmove', function(e){
+      if(!pulling || refreshing) return;
+      var dy = e.touches[0].clientY - startY, dx = e.touches[0].clientX - startX;
+      if(dy <= 0 || Math.abs(dx) > Math.abs(dy)){ if(dist > 0) hidePtr(); dist = 0; if(dy < 0) pulling = false; return; }
+      dist = dy;
+      if(dist > 24) showPtr(dist > 80 ? '↑ Release to refresh' : '↓ Pull to refresh');
+    }, { passive: true });
+    document.addEventListener('touchend', function(){
+      if(pulling && dist > 80) refreshNow(true);
+      else if(dist > 0 && !refreshing) hidePtr();
+      pulling = false; dist = 0;
+    }, { passive: true });
+  })();
+  setInterval(function(){ if(!document.hidden && !sheet) refreshNow(false); }, cfg.autoRefreshMs || 60000);
+
+  // ---------- Phone layout ----------
+  // Applies only on narrow screens, so desktop and tablet keep the board as is.
+  var PHONE_CSS = '@media (max-width: 600px){' +
+    'input,textarea,select{font-size:16px !important;}' +          /* iOS zooms into any field under 16px */
+    '.board{padding:8px 12px 6px !important;}' +
+    '.board-top{gap:8px !important;}' +
+    '.board-title{gap:9px !important;}' +
+    '.board-title .glyph{width:28px !important;height:28px !important;font-size:14px !important;}' +
+    '.board-title h1{font-size:18px !important;}' +
+    '.board-title .sub{font-size:11px !important;line-height:1.35 !important;}' +
+    '.role-tag{display:none !important;}' +
+    '.board-actions{flex-wrap:nowrap !important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:6px !important;padding-bottom:2px;}' +
+    '.board-actions::-webkit-scrollbar{display:none;}' +
+    '.board-actions>*{flex:0 0 auto;}' +
+    '.board-actions button{padding:6px 10px !important;font-size:12.5px !important;}' +
+    '.ui-ctl button{padding:4px 7px !important;}' +
+    '.status-pill{font-size:10px !important;padding:4px 7px !important;white-space:nowrap;}' +
+    '#forgetBtn,#openBtn{display:none !important;}' +
+    '.flap-row{margin-top:8px !important;gap:6px !important;}' +
+    '.flap{min-width:62px !important;padding:5px 8px !important;}' +
+    '.flap .n{font-size:17px !important;}' +
+    '.flap .l{font-size:8.5px !important;letter-spacing:1px !important;}' +
+    '.flap.cleared{min-width:96px !important;}' +
+    '.activity-strip{height:10px !important;margin-top:4px !important;}' +
+    '.main{padding:12px 12px calc(40px + env(safe-area-inset-bottom)) !important;}' +
+    '.searchbar{margin-bottom:10px !important;}' +
+    '.completed-toggle{padding:2px 2px 10px !important;font-size:12.5px !important;}' +
+    '.quickadd{margin-bottom:12px !important;}' +
+    '.sec-note{display:none !important;}' +
+    'h3.sec-title{font-size:17px !important;}' +
+    '.footer-note{display:none !important;}' +
+  '}';
+  var phoneQuery = window.matchMedia('(max-width: 600px)');
+  function phoneText(){
+    if(!phoneQuery.matches) return;
+    var t = document.querySelector('.completed-toggle span:last-child');
+    if(t && t.textContent.length > 20) t.textContent = 'Hide completed items';
+    var q = document.getElementById('quickInput');
+    if(q && q.placeholder.length > 30) q.placeholder = 'Quick-add to Quick Capture…';
+    var r = document.getElementById('reloadBtn');
+    if(r && r.textContent !== '↻ Refresh'){ r.textContent = '↻ Refresh'; r.title = 'Re-read TASKS.md from Dropbox'; }
+  }
+
   function mountUi(){
-    pill = el('button', 'position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));z-index:240;padding:6px 11px;border-radius:16px;border:1px solid var(--border,#D3DFD8);font:600 12px var(--sans,-apple-system,sans-serif);box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:pointer;');
+    try{ var st = document.createElement('style'); st.id = 'enum-phone-css'; st.textContent = PHONE_CSS; document.head.appendChild(st); }catch(e){}
+    pill = el('button');
     pill.id = 'enum-dbx-pill';
+    pill.type = 'button';
     pill.onclick = openSheet;
+    var actions = document.querySelector('.board-actions');
+    if(actions){
+      pillInHeader = true;
+      actions.insertBefore(pill, actions.firstChild);
+    } else {
+      pill.style.cssText = 'position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));z-index:240;padding:6px 11px;border-radius:16px;border:1px solid var(--border,#D3DFD8);font:600 12px var(--sans,-apple-system,sans-serif);box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:pointer;';
+      document.body.appendChild(pill);
+    }
     paintPill();
-    document.body.appendChild(pill);
+    phoneText();
+    var pending = false;
+    new MutationObserver(function(){
+      if(pending) return;
+      pending = true;
+      requestAnimationFrame(function(){ pending = false; phoneText(); });
+    }).observe(document.body, { childList: true, subtree: true });
+    if(phoneQuery.addEventListener) phoneQuery.addEventListener('change', phoneText);
     if(mode() === 'read'){
       var bar = el('div', 'position:sticky;top:0;z-index:230;padding:calc(7px + env(safe-area-inset-top)) 14px 7px;background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);font:600 12.5px var(--sans,sans-serif);text-align:center;', 'Read-only on this phone: you can look, but nothing you change here is saved to Dropbox.');
       bar.id = 'enum-ro-bar';
@@ -539,7 +679,7 @@ function shimMain(core, cfg){
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountUi);
   else mountUi();
 
-  window.__enumeratedMobile = { mode: mode, log: log };
+  window.__enumeratedMobile = { mode: mode, log: log, refreshNow: refreshNow };
 }
 
 /* ======================================================================
