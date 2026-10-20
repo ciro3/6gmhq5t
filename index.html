@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Enumerated</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Enumerated">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EEF3EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1613" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+/* Mobile shell. Signs in to Dropbox once, then loads the board's own HTML from
+   the chosen Dropbox folder and runs it with a small adapter, so Open and Save
+   talk to Dropbox instead of the Files app. The file in Dropbox stays the only
+   copy of the board. No paths or keys are stored in this page; they are
+   entered on the device and kept there. */
+:root{
+  color-scheme: light;
+  --bg:#EEF3EE; --panel:#F8FAF8; --panel-2:#FFFFFF; --border:#D3DFD8;
+  --text:#16241F; --muted:#5C7269; --dim:#93A69C;
+  --amber:#B8841F; --amber-hover:#CC9736; --on-amber:#2B1D06;
+  --green:#2E8062; --blue:#3B7D8C; --red:#C15B3F; --well:#E7EFEA;
+  --sans: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: ui-serif, Georgia, 'Times New Roman', serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme: dark;
+    --bg:#0F1613; --panel:#151E1A; --panel-2:#1A241F; --border:#2E3F38;
+    --text:#E3EDE8; --muted:#9DB1A7; --dim:#6E857B;
+    --amber:#E0A83C; --amber-hover:#EBB852; --on-amber:#241804;
+    --green:#4FBE8E; --blue:#63AEBE; --red:#E07A5F; --well:#1A2420;
+  }
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); -webkit-text-size-adjust:100%; }
+body{ min-height:100vh; padding: calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom)); }
+.wrap{ max-width:460px; margin:0 auto; }
+.brand{ display:flex; align-items:center; gap:12px; margin:8px 0 22px; }
+.glyph{ width:40px; height:40px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+  font-family:var(--display); font-style:italic; font-weight:600; font-size:20px; color:#F5FAF7;
+  background:linear-gradient(150deg, var(--green), var(--blue)); }
+h1{ font-family:var(--display); font-style:italic; font-weight:600; font-size:24px; margin:0; line-height:1.1; }
+.sub{ color:var(--muted); font-size:13px; margin-top:3px; }
+.card{ background:var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:18px 16px; margin-bottom:14px; }
+.step{ font-family:var(--mono); font-size:10.5px; letter-spacing:1.4px; text-transform:uppercase; color:var(--amber); margin-bottom:6px; }
+p{ font-size:14px; line-height:1.5; margin:0 0 12px; }
+p.small{ font-size:12.5px; color:var(--muted); }
+label{ display:block; font-size:12.5px; color:var(--muted); margin:10px 0 5px; }
+input[type=text]{ width:100%; font:15px var(--mono); padding:11px 12px; border-radius:8px; border:1px solid var(--border);
+  background:var(--well); color:var(--text); }
+input[type=text]:focus{ outline:none; border-color:var(--amber); }
+button, a.btn{ display:block; text-align:center; text-decoration:none; font:600 15px var(--sans); border-radius:9px; border:1px solid var(--border); background:var(--panel);
+  color:var(--text); padding:12px 14px; width:100%; margin-top:10px; cursor:pointer; }
+button.primary, a.btn.primary{ background:var(--amber); border-color:var(--amber); color:var(--on-amber); }
+button:disabled, a.btn[aria-disabled=true]{ opacity:0.45; cursor:not-allowed; }
+.modes{ display:flex; gap:8px; margin-top:4px; }
+.modes label{ flex:1; margin:0; display:flex; gap:8px; align-items:flex-start; border:1px solid var(--border); border-radius:9px;
+  padding:10px; background:var(--well); color:var(--text); font-size:13px; line-height:1.35; cursor:pointer; }
+.modes label small{ display:block; color:var(--muted); font-size:11.5px; margin-top:2px; }
+.modes input{ margin-top:2px; accent-color: var(--amber); }
+.err{ color:var(--red); font-size:13px; margin-top:10px; white-space:pre-wrap; word-break:break-word; }
+.ok{ color:var(--green); font-size:13px; margin-top:10px; }
+.loading{ text-align:center; padding-top:18vh; color:var(--muted); font-size:14px; }
+.spinner{ width:26px; height:26px; margin:0 auto 14px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--amber);
+  animation:spin .9s linear infinite; }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce){ .spinner{ animation:none; } }
+.hidden{ display:none !important; }
+code{ font-family:var(--mono); font-size:12px; background:var(--well); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="glyph">E</div>
+    <div><h1>Enumerated</h1><div class="sub">Your task board, straight from Dropbox</div></div>
+  </div>
+
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div id="loadingText">Loading your board from Dropbox…</div>
+    <div id="loadError" class="err hidden"></div>
+    <div id="loadActions" class="hidden" style="max-width:320px;margin:10px auto 0;">
+      <button class="primary" id="retryBtn">Try again</button>
+      <button id="resetBtn">Disconnect Dropbox</button>
+    </div>
+  </div>
+
+  <div id="setup" class="hidden">
+    <div id="setupNote" class="card hidden"><p id="setupNoteText" style="margin:0"></p></div>
+
+    <div class="card">
+      <div class="step">Step 1 · Folder and app key</div>
+      <label for="rootPath" style="margin-top:0">Dropbox folder that holds the board</label>
+      <input type="text" id="rootPath" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="/Folder">
+      <label for="appKey">App key, from your app in the Dropbox App Console (not a secret)</label>
+      <input type="text" id="appKey" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="app key">
+    </div>
+
+    <div class="card">
+      <div class="step">Step 2 · Approve</div>
+      <p>Opens Dropbox. Approve, then copy the code it shows you and come back here.</p>
+      <a class="btn primary" id="authLink" href="#" target="_blank" rel="noopener noreferrer">Open Dropbox to approve</a>
+    </div>
+
+    <div class="card">
+      <div class="step">Step 3 · Paste the code</div>
+      <input type="text" id="authCode" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="code from Dropbox">
+      <label>How should this phone use TASKS.md?</label>
+      <div class="modes">
+        <label><input type="radio" name="mode" value="write" checked><span>Read &amp; write<small>Ticks, notes and quick-adds save to Dropbox</small></span></label>
+        <label><input type="radio" name="mode" value="read"><span>Read-only<small>Look, don't touch. Nothing is saved</small></span></label>
+      </div>
+      <button class="primary" id="connectBtn">Connect</button>
+      <div id="setupError" class="err hidden"></div>
+    </div>
+
+    <p class="small">The sign-in stays on this device. To cut it off from anywhere: Dropbox settings → Connected apps.</p>
+  </div>
+</div>
+
+<script>
+/* ======================================================================
+   Shared Dropbox core. Used by this page for sign-in and by the adapter
+   injected into the dashboard. Self-contained on purpose: it is serialised
+   with Function.prototype.toString(), so it must not reference anything
+   outside itself.
+   ====================================================================== */
+function dbxCore(cfg){
+  'use strict';
+  var KEY = cfg.storageKey;
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; } }
+  function save(s){ localStorage.setItem(KEY, JSON.stringify(s)); }
+  function clear(){ try{ localStorage.removeItem(KEY); localStorage.removeItem(cfg.dashCacheKey); }catch(e){} }
+  // Dropbox-API-Arg travels in an HTTP header, which must be ASCII.
+  function headerJson(o){
+    return JSON.stringify(o).replace(/[\u007f-￿]/g, function(c){ return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4); });
+  }
+  function authError(msg){ var e = new Error(msg); e.dbxAuth = true; return e; }
+
+  var refreshing = null;
+  function refresh(){
+    if(refreshing) return refreshing;
+    refreshing = (async function(){
+      var s = load();
+      if(!s.refreshToken || !s.appKey) throw authError('Not connected to Dropbox.');
+      var r;
+      try{
+        r = await fetch(cfg.tokenUrl, { method:'POST', body: new URLSearchParams({ grant_type:'refresh_token', refresh_token:s.refreshToken, client_id:s.appKey }) });
+      }catch(e){ throw new Error('No connection to Dropbox (' + e.message + ').'); }
+      var j = {}; try{ j = await r.json(); }catch(e){}
+      if(!r.ok || !j.access_token){
+        if(r.status === 400 || r.status === 401) throw authError('Dropbox sign-in expired or was revoked (' + (j.error_description || j.error || r.status) + ').');
+        throw new Error('Dropbox sign-in refresh failed (' + r.status + ').');
+      }
+      s = load();
+      s.accessToken = j.access_token;
+      s.expiresAt = Date.now() + (j.expires_in || 14400) * 1000;
+      save(s);
+      return s.accessToken;
+    })();
+    return refreshing.finally(function(){ refreshing = null; });
+  }
+  async function token(){
+    var s = load();
+    if(s.accessToken && s.expiresAt && s.expiresAt - Date.now() > 60000) return s.accessToken;
+    return refresh();
+  }
+
+  // Only the chosen folder is reachable: any path outside it is refused before
+  // a request is made. (Dropbox can't narrow the sign-in itself to one folder.)
+  function allowed(p){
+    var root = String(cfg.rootPath).toLowerCase(), s = String(p).toLowerCase();
+    if(s !== root && s.indexOf(root + '/') !== 0) return false;
+    return !s.split('/').some(function(seg){ return seg === '.' || seg === '..'; });
+  }
+  // kind: 'rpc' (api host, JSON body) | 'download' | 'upload' (content host, arg in header)
+  async function call(kind, endpoint, arg, body, retried){
+    if(arg && typeof arg.path === 'string' && (!cfg.rootPath || !allowed(arg.path))){
+      var deny = new Error('Blocked: ' + arg.path + ' is outside ' + cfg.rootPath + '. This board only touches that folder.');
+      deny.status = 403; deny.summary = 'outside_root';
+      throw deny;
+    }
+    var t = await token();
+    var url = (kind === 'rpc' ? 'https://api.dropboxapi.com/2/' : 'https://content.dropboxapi.com/2/') + endpoint;
+    var headers = { 'Authorization': 'Bearer ' + t };
+    var reqBody;
+    if(kind === 'rpc'){
+      if(arg !== undefined && arg !== null){ headers['Content-Type'] = 'application/json'; reqBody = JSON.stringify(arg); }
+    } else {
+      headers['Dropbox-API-Arg'] = headerJson(arg);
+      if(kind === 'upload'){ headers['Content-Type'] = 'application/octet-stream'; reqBody = body; }
+    }
+    var r;
+    try{ r = await fetch(url, { method:'POST', headers: headers, body: reqBody, cache:'no-store' }); }
+    catch(e){ throw new Error('No connection to Dropbox (' + e.message + ').'); }
+    if(r.status === 401 && !retried){ await refresh(); return call(kind, endpoint, arg, body, true); }
+    if(!r.ok){
+      var text = ''; try{ text = await r.text(); }catch(e){}
+      var summary = text; try{ summary = JSON.parse(text).error_summary || text; }catch(e){}
+      var err = new Error('Dropbox ' + endpoint + ' failed (' + r.status + '): ' + String(summary).slice(0, 180));
+      err.status = r.status; err.summary = String(summary);
+      if(r.status === 401) err.dbxAuth = true;
+      throw err;
+    }
+    return r;
+  }
+  async function metadata(path){
+    try{ var r = await call('rpc', 'files/get_metadata', { path: path }); return await r.json(); }
+    catch(e){ if(e.status === 409 && /not_found/.test(e.summary)) return null; throw e; }
+  }
+  async function download(path){
+    var r = await call('download', 'files/download', { path: path });
+    var meta = null, h = r.headers.get('Dropbox-API-Result');
+    if(h){ try{ meta = JSON.parse(h); }catch(e){} }
+    var blob = await r.blob();
+    if(!meta) meta = await metadata(path);
+    return { blob: blob, meta: meta };
+  }
+  async function upload(path, blob, rev){
+    var mode = rev ? { '.tag':'update', update: rev } : { '.tag':'add' };
+    var r = await call('upload', 'files/upload', { path: path, mode: mode, autorename:false, mute:true, strict_conflict:true }, blob);
+    return r.json();
+  }
+  async function listFolder(path){
+    var out = [];
+    var r = await call('rpc', 'files/list_folder', { path: path, recursive:false });
+    var j = await r.json();
+    out = out.concat(j.entries || []);
+    while(j.has_more){
+      r = await call('rpc', 'files/list_folder/continue', { cursor: j.cursor });
+      j = await r.json();
+      out = out.concat(j.entries || []);
+    }
+    return out;
+  }
+  async function signOut(){
+    try{ await call('rpc', 'auth/token/revoke', null); }catch(e){ /* already revoked or offline: forget it locally anyway */ }
+    clear();
+  }
+  return { load: load, save: save, clear: clear, call: call, metadata: metadata, download: download,
+           upload: upload, listFolder: listFolder, refresh: refresh, signOut: signOut };
+}
+
+/* ======================================================================
+   Adapter injected into the dashboard, ahead of its own scripts.
+   The board was written for the File System Access API (Chrome/Edge). This
+   provides that same API, backed by Dropbox, so the board runs unchanged:
+   Open returns the Dropbox file, Save uploads it. Saves only land on the exact
+   revision last read, so a change made elsewhere in between is refused,
+   never overwritten.
+   ====================================================================== */
+function shimMain(core, cfg){
+  'use strict';
+  var cache = {};   // lower-case path -> { rev, blob, lastModified }
+  var log = [];     // recent errors, shown in the Dropbox menu
+  function note(msg){ log.push(new Date().toLocaleTimeString() + '  ' + msg); if(log.length > 30) log.shift(); }
+  function mode(){ return core.load().mode === 'read' ? 'read' : 'write'; }
+  function domErr(name, msg){ try{ return new DOMException(msg, name); }catch(e){ var x = new Error(msg); x.name = name; return x; } }
+  function baseName(p){ var parts = String(p).split('/'); return parts[parts.length - 1]; }
+  function lower(p){ return String(p || '').toLowerCase(); }
+
+  function DbxFileHandle(path){ this.kind = 'file'; this.name = baseName(path); this.path = path; this.__dbxShim = 1; }
+  DbxFileHandle.prototype.queryPermission = async function(){ return 'granted'; };
+  DbxFileHandle.prototype.requestPermission = async function(){ return 'granted'; };
+  DbxFileHandle.prototype.isSameEntry = async function(o){ return !!o && o.kind === this.kind && lower(o.path) === lower(this.path); };
+  DbxFileHandle.prototype.getFile = async function(){
+    var key = lower(this.path);
+    var meta = await core.metadata(this.path);
+    if(!meta) throw domErr('NotFoundError', this.path + ' is not in Dropbox.');
+    var c = cache[key];
+    if(!c || c.rev !== meta.rev){
+      var d = await core.download(this.path);
+      c = cache[key] = { rev: d.meta.rev, blob: d.blob, lastModified: Date.parse(d.meta.server_modified) || Date.now() };
+    }
+    return new File([c.blob], this.name, { type: 'text/markdown', lastModified: c.lastModified });
+  };
+  DbxFileHandle.prototype.createWritable = async function(opts){
+    var self = this;
+    if(mode() === 'read') throw domErr('NotAllowedError', 'read-only on this phone. Nothing was saved. Switch in the ☁ menu.');
+    var c = cache[lower(self.path)];
+    var parts = (opts && opts.keepExistingData && c) ? [c.blob] : [];
+    var finished = false;
+    return {
+      write: async function(data){
+        if(data && typeof data === 'object' && !(data instanceof Blob) && !(data instanceof ArrayBuffer) && !ArrayBuffer.isView(data) && 'type' in data){
+          if(data.type === 'truncate'){ if(!data.size) parts = []; return; }
+          if(data.type === 'seek') return;
+          data = data.data;
+        }
+        parts.push(data);
+      },
+      truncate: async function(size){ if(!size) parts = []; },
+      seek: async function(){},
+      abort: async function(){ finished = true; parts = []; },
+      close: async function(){
+        if(finished) return;
+        finished = true;
+        await self._save(new Blob(parts, { type: 'text/markdown' }));
+      }
+    };
+  };
+  DbxFileHandle.prototype._save = async function(blob){
+    if(mode() === 'read') throw domErr('NotAllowedError', 'read-only on this phone. Nothing was saved.');
+    try{
+      if(cfg.lockPath && await core.metadata(cfg.lockPath)){
+        throw domErr('NoModificationAllowedError', 'a processing run is in progress (its lock file is present), so this save was held back. Tap Save once it finishes.');
+      }
+      var key = lower(this.path), c = cache[key];
+      var res;
+      try{ res = await core.upload(this.path, blob, c && c.rev); }
+      catch(e){
+        if(e.status === 409 && /conflict/.test(e.summary || '')) throw domErr('InvalidStateError', 'TASKS.md changed in Dropbox while you were editing, so this save was refused. Reload, then redo the edit.');
+        if(/missing_scope|insufficient_scope|files\.content\.write/.test(e.summary || '')) throw domErr('NotAllowedError', 'the Dropbox app has no write permission. Add files.content.write in the App Console, then disconnect and reconnect.');
+        throw e;
+      }
+      cache[key] = { rev: res.rev, blob: blob, lastModified: Date.parse(res.server_modified) || Date.now() };
+      flashPill('saved');
+    }catch(e){
+      note('Save: ' + e.message);
+      if(e.dbxAuth) offerReconnect();
+      throw e;
+    }
+  };
+
+  function DbxDirectoryHandle(path){ this.kind = 'directory'; this.name = baseName(path) || 'Dropbox'; this.path = path; this.__dbxShim = 1; }
+  DbxDirectoryHandle.prototype.queryPermission = DbxFileHandle.prototype.queryPermission;
+  DbxDirectoryHandle.prototype.requestPermission = DbxFileHandle.prototype.requestPermission;
+  DbxDirectoryHandle.prototype.isSameEntry = DbxFileHandle.prototype.isSameEntry;
+  DbxDirectoryHandle.prototype.getFileHandle = async function(name, opts){
+    var p = this.path + '/' + name;
+    var m = await core.metadata(p);
+    if(!m){
+      if(!(opts && opts.create)) throw domErr('NotFoundError', p + ' is not in Dropbox.');
+      if(mode() === 'read') throw domErr('NotAllowedError', 'read-only on this phone.');
+      var res = await core.upload(p, new Blob(['']), null);
+      cache[lower(p)] = { rev: res.rev, blob: new Blob(['']), lastModified: Date.parse(res.server_modified) || Date.now() };
+    } else if(m['.tag'] !== 'file'){
+      throw domErr('TypeMismatchError', p + ' is a folder.');
+    }
+    return new DbxFileHandle(p);
+  };
+  DbxDirectoryHandle.prototype.getDirectoryHandle = async function(name){
+    var p = this.path + '/' + name;
+    var m = await core.metadata(p);
+    if(!m) throw domErr('NotFoundError', p + ' is not in Dropbox.');
+    if(m['.tag'] !== 'folder') throw domErr('TypeMismatchError', p + ' is a file.');
+    return new DbxDirectoryHandle(p);
+  };
+  DbxDirectoryHandle.prototype.removeEntry = async function(){ throw domErr('NotAllowedError', 'Deleting files is turned off on the mobile board.'); };
+  DbxDirectoryHandle.prototype.resolve = async function(h){
+    if(!h || !h.path) return null;
+    var base = lower(this.path) + '/';
+    return lower(h.path).indexOf(base) === 0 ? h.path.slice(base.length).split('/') : null;
+  };
+  DbxDirectoryHandle.prototype.entries = async function*(){
+    var list = await core.listFolder(this.path);
+    for(var i = 0; i < list.length; i++){
+      var e = list[i], p = this.path + '/' + e.name;
+      yield [e.name, e['.tag'] === 'folder' ? new DbxDirectoryHandle(p) : new DbxFileHandle(p)];
+    }
+  };
+  DbxDirectoryHandle.prototype.values = async function*(){ for await (var pair of this.entries()) yield pair[1]; };
+  DbxDirectoryHandle.prototype.keys = async function*(){ for await (var pair of this.entries()) yield pair[0]; };
+  DbxDirectoryHandle.prototype[Symbol.asyncIterator] = function(){ return this.entries(); };
+
+  // Pickers: the dashboard names its pickers by id, so no picker UI is needed.
+  function pathForId(id){
+    id = lower(id);
+    if(/archive/.test(id)) return cfg.archivePath;
+    if(/task/.test(id)) return cfg.tasksPath;
+    return null;
+  }
+  window.showOpenFilePicker = async function(opts){
+    var p = pathForId(opts && opts.id);
+    if(!p) p = await chooseFile();
+    return [new DbxFileHandle(p)];
+  };
+  window.showDirectoryPicker = async function(){ return new DbxDirectoryHandle(cfg.rootPath); };
+
+  // A remembered handle comes back out of IndexedDB as a plain object (the
+  // methods live on the prototype, which storage doesn't keep). Rebuild it on
+  // the way out so "reconnect automatically" works after a restart.
+  function revive(v){
+    if(v && typeof v === 'object' && v.__dbxShim && typeof v.path === 'string'){
+      return v.kind === 'directory' ? new DbxDirectoryHandle(v.path) : new DbxFileHandle(v.path);
+    }
+    if(Array.isArray(v)) return v.map(revive);
+    return v;
+  }
+  try{
+    var resultDesc = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'result');
+    ['get', 'getAll'].forEach(function(fn){
+      var orig = IDBObjectStore.prototype[fn];
+      if(!orig || !resultDesc) return;
+      IDBObjectStore.prototype[fn] = function(){
+        var req = orig.apply(this, arguments), done = false, val;
+        Object.defineProperty(req, 'result', { configurable: true, get: function(){
+          if(!done){ val = revive(resultDesc.get.call(req)); done = true; }
+          return val;
+        }});
+        return req;
+      };
+    });
+  }catch(e){ note('IndexedDB adapter: ' + e.message); }
+
+  // Defence in depth for a page that holds a Dropbox sign-in: task text is
+  // rendered as HTML, so strip inline event handlers and script: links from
+  // anything added to the page. (The page's security policy also blocks them.)
+  function scrub(el){
+    if(!el || el.nodeType !== 1) return;
+    var all = [el].concat(Array.prototype.slice.call(el.querySelectorAll ? el.querySelectorAll('*') : []));
+    all.forEach(function(n){
+      for(var i = n.attributes.length - 1; i >= 0; i--){
+        var a = n.attributes[i];
+        if(/^on/i.test(a.name)) n.removeAttribute(a.name);
+        else if((a.name === 'href' || a.name === 'src' || a.name === 'xlink:href') && /^\s*(javascript|data|vbscript):/i.test(a.value) && n.tagName !== 'IMG') n.removeAttribute(a.name);
+      }
+    });
+  }
+  try{
+    new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if(m.type === 'attributes') scrub(m.target);
+        else m.addedNodes.forEach(scrub);
+      });
+    }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'onclick', 'onmouseover', 'onfocus', 'onerror', 'onload'] });
+  }catch(e){}
+
+  window.addEventListener('error', function(e){ note('Page error: ' + (e.message || e.type)); });
+  window.addEventListener('unhandledrejection', function(e){ note('Unhandled: ' + ((e.reason && e.reason.message) || e.reason)); });
+  document.addEventListener('securitypolicyviolation', function(e){ note('Blocked by policy: ' + e.violatedDirective + ' ' + (e.blockedURI || '')); });
+
+  // ---------- Small Dropbox control, bottom-left ----------
+  var pill, sheet;
+  function el(tag, css, text){ var n = document.createElement(tag); if(css) n.style.cssText = css; if(text != null) n.textContent = text; return n; }
+  function paintPill(){
+    if(!pill) return;
+    var ro = mode() === 'read';
+    pill.textContent = ro ? '👁 Read-only' : '☁ Dropbox';
+    pill.style.background = ro ? 'var(--amber, #B8841F)' : 'var(--panel-3, #E7EFE9)';
+    pill.style.color = ro ? 'var(--on-amber, #2B1D06)' : 'var(--text, #16241F)';
+    pill.title = ro ? 'Read-only: nothing on this phone is saved to Dropbox. Tap for options.' : 'Reading and saving TASKS.md in Dropbox. Tap for options.';
+  }
+  function flashPill(word){
+    if(!pill || mode() === 'read') return;
+    pill.textContent = '☁ ' + word;
+    clearTimeout(flashPill.t);
+    flashPill.t = setTimeout(paintPill, 1800);
+  }
+  function closeSheet(){ if(sheet){ sheet.remove(); sheet = null; } }
+  function reloadBoard(){ location.reload(); }
+  function openSheet(){
+    if(sheet){ closeSheet(); return; }
+    sheet = el('div', 'position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.35);display:flex;align-items:flex-end;justify-content:center;');
+    sheet.onclick = function(e){ if(e.target === sheet) closeSheet(); };
+    var card = el('div', 'width:100%;max-width:480px;background:var(--panel-2,#fff);color:var(--text,#16241F);border-radius:14px 14px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));font:14px/1.45 var(--sans,-apple-system,sans-serif);box-shadow:0 -8px 24px rgba(0,0,0,0.2);');
+    card.appendChild(el('div', 'font-family:var(--display,serif);font-style:italic;font-weight:600;font-size:18px;margin-bottom:4px;', 'Dropbox connection'));
+    card.appendChild(el('div', 'color:var(--muted,#5C7269);font-size:12.5px;margin-bottom:12px;', 'This board reads ' + cfg.tasksPath + ' from Dropbox. Saves go through only if the file has not changed since it was read, and are held while the lock file exists.'));
+    function btn(text, primary, fn){
+      var b = el('button', 'display:block;width:100%;margin-top:8px;padding:12px;border-radius:9px;font:600 14px var(--sans,sans-serif);border:1px solid var(--border,#D3DFD8);' + (primary ? 'background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);border-color:var(--amber,#B8841F);' : 'background:var(--panel-3,#E7EFE9);color:var(--text,#16241F);'), text);
+      b.onclick = fn; card.appendChild(b); return b;
+    }
+    var ro = mode() === 'read';
+    card.appendChild(el('div', 'font-weight:600;margin-top:4px;', ro ? 'Mode: read-only' : 'Mode: read & write'));
+    btn(ro ? 'Switch to read & write' : 'Switch to read-only', true, function(){
+      var s = core.load(); s.mode = ro ? 'write' : 'read'; core.save(s); reloadBoard();
+    });
+    btn('Reload board from Dropbox', false, reloadBoard);
+    btn('Disconnect Dropbox on this phone', false, async function(){
+      if(!confirm('Disconnect Dropbox? You will need to approve again to use the board here.')) return;
+      await core.signOut(); reloadBoard();
+    });
+    if(log.length){
+      var pre = el('div', 'margin-top:12px;max-height:120px;overflow:auto;font:11px/1.4 var(--mono,monospace);color:var(--muted,#5C7269);white-space:pre-wrap;word-break:break-word;', log.slice().reverse().join('\n'));
+      card.appendChild(el('div', 'margin-top:12px;font-size:12px;font-weight:600;', 'Recent problems'));
+      card.appendChild(pre);
+    }
+    btn('Close', false, closeSheet);
+    sheet.appendChild(card);
+    document.body.appendChild(sheet);
+  }
+  function offerReconnect(){
+    if(document.getElementById('enum-reauth')) return;
+    var bar = el('div', 'position:fixed;left:0;right:0;top:0;z-index:420;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:var(--red,#C15B3F);color:#fff;font:600 13px var(--sans,sans-serif);display:flex;gap:10px;align-items:center;justify-content:space-between;');
+    bar.id = 'enum-reauth';
+    bar.appendChild(el('span', '', 'Dropbox sign-in expired. Edits since then are kept on this phone.'));
+    var b = el('button', 'padding:6px 10px;border-radius:6px;border:none;font:600 13px var(--sans,sans-serif);background:#fff;color:#C15B3F;', 'Reconnect');
+    b.onclick = async function(){ var s = core.load(); delete s.refreshToken; delete s.accessToken; core.save(s); reloadBoard(); };
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function chooseFile(){
+    return new Promise(function(resolve, reject){
+      var o = el('div', 'position:fixed;inset:0;z-index:410;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;padding:20px;');
+      var card = el('div', 'width:100%;max-width:380px;background:var(--panel-2,#fff);color:var(--text,#16241F);border-radius:12px;padding:16px;font:14px var(--sans,sans-serif);');
+      card.appendChild(el('div', 'font-weight:600;margin-bottom:8px;', 'Open from Dropbox'));
+      cfg.knownFiles.forEach(function(f){
+        var b = el('button', 'display:block;width:100%;text-align:left;margin-top:6px;padding:11px;border-radius:8px;border:1px solid var(--border,#D3DFD8);background:var(--panel-3,#E7EFE9);color:inherit;font:inherit;', f);
+        b.onclick = function(){ o.remove(); resolve(f); };
+        card.appendChild(b);
+      });
+      var c = el('button', 'display:block;width:100%;margin-top:10px;padding:11px;border-radius:8px;border:none;background:transparent;color:var(--muted,#5C7269);font:inherit;', 'Cancel');
+      c.onclick = function(){ o.remove(); reject(domErr('AbortError', 'cancelled')); };
+      card.appendChild(c);
+      o.appendChild(card);
+      document.body.appendChild(o);
+    });
+  }
+  function mountUi(){
+    pill = el('button', 'position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(10px + env(safe-area-inset-bottom));z-index:240;padding:6px 11px;border-radius:16px;border:1px solid var(--border,#D3DFD8);font:600 12px var(--sans,-apple-system,sans-serif);box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:pointer;');
+    pill.id = 'enum-dbx-pill';
+    pill.onclick = openSheet;
+    paintPill();
+    document.body.appendChild(pill);
+    if(mode() === 'read'){
+      var bar = el('div', 'position:sticky;top:0;z-index:230;padding:calc(7px + env(safe-area-inset-top)) 14px 7px;background:var(--amber,#B8841F);color:var(--on-amber,#2B1D06);font:600 12.5px var(--sans,sans-serif);text-align:center;', 'Read-only on this phone: you can look, but nothing you change here is saved to Dropbox.');
+      bar.id = 'enum-ro-bar';
+      document.body.insertBefore(bar, document.body.firstChild);
+      // The board's own status pill says "saved — synced via Dropbox" after a
+      // load; in read-only that reads as a promise this phone can't keep.
+      var sp = document.getElementById('statusPill');
+      if(sp){
+        var fix = function(){ if(/^saved/i.test(sp.textContent)) sp.textContent = 'read-only · loaded from Dropbox'; };
+        fix();
+        new MutationObserver(fix).observe(sp, { childList: true, characterData: true, subtree: true });
+      }
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountUi);
+  else mountUi();
+
+  window.__enumeratedMobile = { mode: mode, log: log };
+}
+
+/* ======================================================================
+   This page: sign-in, then load the dashboard from Dropbox and hand over.
+   ====================================================================== */
+var CFG = {
+  appKey: '',                                   // optional: bake in the Dropbox app key here
+  storageKey: 'enumerated-dbx-v1',
+  dashCacheKey: 'enumerated-dash-cache-v1',
+  pkceKey: 'enumerated-pkce-v1',
+  tokenUrl: 'https://api.dropboxapi.com/oauth2/token',
+  authorizeUrl: 'https://www.dropbox.com/oauth2/authorize',
+  rootPath: ''      // the Dropbox folder, entered at setup and kept on the device
+};
+// Files inside that folder.
+var REL = { dashboard: '/tasks-dashboard.html', tasks: '/wiki/TASKS.md', archive: '/wiki/TASKS_ARCHIVE.md', lock: '/.praw-lock' };
+function normRoot(r){
+  r = String(r || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
+  if(r && r.charAt(0) !== '/') r = '/' + r;
+  return r;
+}
+function setRoot(r){
+  r = normRoot(r);
+  CFG.rootPath = r;
+  CFG.dashboardPath = r + REL.dashboard;
+  CFG.tasksPath = r + REL.tasks;
+  CFG.archivePath = r + REL.archive;
+  CFG.lockPath = r + REL.lock;
+  CFG.knownFiles = [CFG.tasksPath, CFG.archivePath];
+}
+var core = dbxCore(CFG);
+setRoot(core.load().root || '');
+var $ = function(id){ return document.getElementById(id); };
+function show(id){ ['loading', 'setup'].forEach(function(x){ $(x).classList.toggle('hidden', x !== id); }); }
+
+function b64url(bytes){
+  var s = ''; for(var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function pkcePair(){
+  var v = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+  return { verifier: v, challenge: b64url(new Uint8Array(digest)) };
+}
+
+function readPkce(){ try{ return JSON.parse(localStorage.getItem(CFG.pkceKey)) || null; }catch(e){ return null; } }
+
+function showSetup(message){
+  show('setup');
+  var s = core.load(), pk = readPkce();
+  $('appKey').value = s.appKey || (pk && pk.appKey) || CFG.appKey || '';
+  $('rootPath').value = s.root || (pk && pk.root) || '';
+  if(s.mode === 'read') document.querySelector('input[name=mode][value=read]').checked = true;
+  $('setupNote').classList.toggle('hidden', !message);
+  $('setupNoteText').textContent = message || '';
+  prepareAuthLink();
+}
+
+// The approve button is a real link (target=_blank), prepared ahead of the tap:
+// a home-screen app opens it in an in-app browser sheet and stays put underneath,
+// which is what lets the code be pasted back in. One PKCE verifier per setup,
+// kept in storage in case the app is reloaded while Dropbox is open.
+async function prepareAuthLink(){
+  var a = $('authLink'), key = $('appKey').value.trim();
+  if(!key){ a.setAttribute('aria-disabled', 'true'); a.href = '#'; return; }
+  var pk = readPkce();
+  if(!pk || !pk.verifier || !pk.challenge){
+    var pair = await pkcePair();
+    pk = { verifier: pair.verifier, challenge: pair.challenge };
+  }
+  pk.appKey = key;
+  pk.root = normRoot($('rootPath').value);
+  try{ localStorage.setItem(CFG.pkceKey, JSON.stringify(pk)); }catch(e){}
+  a.href = CFG.authorizeUrl + '?' + new URLSearchParams({
+    client_id: key, response_type: 'code', code_challenge: pk.challenge,
+    code_challenge_method: 'S256', token_access_type: 'offline'
+  }).toString();
+  a.removeAttribute('aria-disabled');
+}
+$('appKey').addEventListener('input', prepareAuthLink);
+$('rootPath').addEventListener('change', prepareAuthLink);
+$('authLink').addEventListener('click', function(e){
+  if(this.getAttribute('aria-disabled') === 'true'){ e.preventDefault(); setupError('Enter the app key first.'); }
+  else setupError('');
+});
+
+$('connectBtn').onclick = async function(){
+  var code = $('authCode').value.trim();
+  var pk = readPkce();
+  var key = $('appKey').value.trim() || (pk && pk.appKey);
+  var root = normRoot($('rootPath').value) || (pk && pk.root) || '';
+  if(!root || root === '/'){ setupError('Enter the Dropbox folder that holds the board, e.g. /Folder.'); return; }
+  if(!code){ setupError('Paste the code Dropbox showed you.'); return; }
+  if(!pk || !pk.verifier){ setupError('Tap "Open Dropbox to approve" first; the code has to come from that approval.'); return; }
+  $('connectBtn').disabled = true;
+  setupError('');
+  try{
+    var r = await fetch(CFG.tokenUrl, { method: 'POST', body: new URLSearchParams({
+      code: code, grant_type: 'authorization_code', code_verifier: pk.verifier, client_id: key
+    }) });
+    var j = {}; try{ j = await r.json(); }catch(e){}
+    if(!r.ok || !j.refresh_token){
+      throw new Error((j.error_description || j.error || ('HTTP ' + r.status)) + (j.refresh_token ? '' : '\nThat code may be used up: approve again to get a fresh one.'));
+    }
+    core.save({
+      appKey: key, refreshToken: j.refresh_token, accessToken: j.access_token,
+      expiresAt: Date.now() + (j.expires_in || 14400) * 1000, accountId: j.account_id || '',
+      mode: document.querySelector('input[name=mode]:checked').value, root: root
+    });
+    setRoot(root);
+    try{ localStorage.removeItem(CFG.pkceKey); }catch(e){}
+    boot();
+  }catch(e){
+    setupError('Could not connect: ' + e.message);
+  }finally{
+    $('connectBtn').disabled = false;
+  }
+};
+function setupError(msg){ $('setupError').textContent = msg; $('setupError').classList.toggle('hidden', !msg); }
+
+async function dashboardHtml(){
+  var meta = await core.metadata(CFG.dashboardPath);
+  if(!meta) throw new Error(CFG.dashboardPath + ' was not found in Dropbox.');
+  var cached = null; try{ cached = JSON.parse(localStorage.getItem(CFG.dashCacheKey)); }catch(e){}
+  if(cached && cached.rev === meta.rev && typeof cached.html === 'string') return cached.html;
+  var d = await core.download(CFG.dashboardPath);
+  var html = await new Response(d.blob).text();
+  try{ localStorage.setItem(CFG.dashCacheKey, JSON.stringify({ rev: d.meta.rev, html: html })); }catch(e){ /* too big for storage: fine, just re-download */ }
+  return html;
+}
+
+// Pre-remember TASKS.md and the archive for the dashboard, so it opens them on
+// launch the same way it reconnects on the desktop. Only done when the board's
+// own storage names are found in its source; otherwise it falls back to one tap
+// on "Open TASKS.md".
+function seedHandles(html){
+  var name = /const\s+IDB_NAME\s*=\s*'([^']+)'/.exec(html);
+  var store = /const\s+IDB_STORE\s*=\s*'([^']+)'/.exec(html);
+  var ver = /indexedDB\.open\(\s*IDB_NAME\s*,\s*(\d+)\s*\)/.exec(html);
+  var tasksKey = /const\s+IDB_KEY\s*=\s*'([^']+)'/.exec(html);
+  var archKey = /const\s+IDB_ARCHIVE_KEY\s*=\s*'([^']+)'/.exec(html);
+  if(!name || !store || !ver || !tasksKey || !window.indexedDB) return Promise.resolve();
+  var wanted = [[tasksKey[1], CFG.tasksPath]];
+  if(archKey) wanted.push([archKey[1], CFG.archivePath]);
+  return new Promise(function(resolve){
+    var req;
+    try{ req = indexedDB.open(name[1], parseInt(ver[1], 10)); }catch(e){ resolve(); return; }
+    req.onupgradeneeded = function(){ if(!req.result.objectStoreNames.contains(store[1])) req.result.createObjectStore(store[1]); };
+    req.onerror = function(){ resolve(); };
+    req.onblocked = function(){ resolve(); };
+    req.onsuccess = function(){
+      var db = req.result;
+      try{
+        var tx = db.transaction(store[1], 'readwrite');
+        var os = tx.objectStore(store[1]);
+        wanted.forEach(function(w){
+          var g = os.get(w[0]);
+          g.onsuccess = function(){
+            var v = g.result;
+            if(!v || !v.__dbxShim) os.put({ kind: 'file', name: w[1].split('/').pop(), path: w[1], __dbxShim: 1 }, w[0]);
+          };
+        });
+        tx.oncomplete = function(){ db.close(); resolve(); };
+        tx.onerror = tx.onabort = function(){ db.close(); resolve(); };
+      }catch(e){ db.close(); resolve(); }
+    };
+  });
+}
+
+function handOver(html){
+  var nonce = b64url(crypto.getRandomValues(new Uint8Array(18)));
+  var csp = [
+    "default-src 'none'",
+    "script-src 'nonce-" + nonce + "'",
+    "style-src 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src https://fonts.gstatic.com",
+    "connect-src https://api.dropboxapi.com https://content.dropboxapi.com",
+    "img-src 'self' data: blob:",
+    "manifest-src 'self'",
+    "base-uri 'none'",
+    "form-action 'none'"
+  ].join('; ');
+  var adapter = '(function(){var cfg=' + JSON.stringify(CFG) + ';var core=(' + dbxCore.toString() + ')(cfg);(' + shimMain.toString() + ')(core,cfg);})();';
+  adapter = adapter.replace(/<\/(script)/gi, '<\\/$1');
+  var head =
+    '<meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
+    '<meta name="apple-mobile-web-app-capable" content="yes">' +
+    '<meta name="mobile-web-app-capable" content="yes">' +
+    '<meta name="apple-mobile-web-app-title" content="Enumerated">' +
+    '<meta name="referrer" content="no-referrer">' +
+    '<meta name="robots" content="noindex, nofollow, noarchive">' +
+    '<link rel="manifest" href="manifest.webmanifest">' +
+    '<link rel="apple-touch-icon" href="icon-180.png">' +
+    '<script nonce="' + nonce + '">' + adapter + '<\/script>';
+  var out = html.replace(/<script(?![^>]*\bnonce=)/gi, '<script nonce="' + nonce + '"');
+  out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, function(m){ return m + head; }) : head + out;
+  document.open();
+  document.write(out);
+  document.close();
+}
+
+async function boot(){
+  show('loading');
+  $('loadingText').textContent = 'Loading your board from Dropbox…';
+  $('loadError').classList.add('hidden');
+  $('loadActions').classList.add('hidden');
+  var s = core.load();
+  if(!s.refreshToken){ showSetup(); return; }
+  if(!s.root){ showSetup('Enter the Dropbox folder that holds the board, then connect again.'); return; }
+  setRoot(s.root);
+  try{
+    var html = await dashboardHtml();
+    await seedHandles(html);
+    handOver(html);
+  }catch(e){
+    if(e.dbxAuth){ showSetup('Dropbox needs approving again. ' + e.message); return; }
+    $('loadingText').textContent = 'The board could not load.';
+    $('loadError').textContent = e.message;
+    $('loadError').classList.remove('hidden');
+    $('loadActions').classList.remove('hidden');
+  }
+}
+$('retryBtn').onclick = boot;
+$('resetBtn').onclick = async function(){ await core.signOut(); showSetup(); };
+
+boot();
+</script>
+</body>
+</html>
